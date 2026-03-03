@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="570" viewBox="0 0 660 570">
+  <rect width="660" height="570" fill="white"/>
+  <text x="330.0" y="22" text-anchor="middle" font-family="monospace" font-size="13" font-weight="bold" fill="#1a1a2e">SimpleCrossJunction — parameters</text>
+<polygon points="280.72,95.00 335.64,95.00 335.64,270.72 555.29,270.72 555.29,299.28 335.64,299.28 335.64,475.00 280.72,475.00 280.72,299.28 105.00,299.28 105.00,270.72 280.72,270.72" fill="#eef2ff" stroke="#1a1a2e" stroke-width="1.8" stroke-linejoin="round"/>
+<line x1="280.72" y1="76.00" x2="280.72" y2="86.00" stroke="#e63946" stroke-width="1"/>
+<line x1="335.64" y1="76.00" x2="335.64" y2="86.00" stroke="#e63946" stroke-width="1"/>
+<line x1="280.72" y1="81.00" x2="335.64" y2="81.00" stroke="#e63946" stroke-width="1"/>
+<text x="308.18" y="73.00" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">W_TOP=50µm</text>
+<line x1="280.72" y1="484.00" x2="280.72" y2="494.00" stroke="#e63946" stroke-width="1"/>
+<line x1="335.64" y1="484.00" x2="335.64" y2="494.00" stroke="#e63946" stroke-width="1"/>
+<line x1="280.72" y1="489.00" x2="335.64" y2="489.00" stroke="#e63946" stroke-width="1"/>
+<text x="308.18" y="503.00" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">W_BOT=80µm</text>
+<line x1="86.00" y1="270.72" x2="96.00" y2="270.72" stroke="#e63946" stroke-width="1"/>
+<line x1="86.00" y1="299.28" x2="96.00" y2="299.28" stroke="#e63946" stroke-width="1"/>
+<line x1="91.00" y1="270.72" x2="91.00" y2="299.28" stroke="#e63946" stroke-width="1"/>
+<text x="81.00" y="285.00" text-anchor="end" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,81.00,285.00)">W_LEFT=100µm</text>
+<line x1="564.29" y1="270.72" x2="574.29" y2="270.72" stroke="#e63946" stroke-width="1"/>
+<line x1="564.29" y1="299.28" x2="574.29" y2="299.28" stroke="#e63946" stroke-width="1"/>
+<line x1="569.29" y1="270.72" x2="569.29" y2="299.28" stroke="#e63946" stroke-width="1"/>
+<text x="579.29" y="285.00" text-anchor="start" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,579.29,285.00)">W_RIGHT=150µm</text>
+<line x1="346.39" y1="95.00" x2="356.39" y2="95.00" stroke="#e63946" stroke-width="1"/>
+<line x1="346.39" y1="270.72" x2="356.39" y2="270.72" stroke="#e63946" stroke-width="1"/>
+<line x1="351.39" y1="95.00" x2="351.39" y2="270.72" stroke="#e63946" stroke-width="1"/>
+<text x="361.39" y="182.86" text-anchor="start" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,361.39,182.86)">L_TOP=400µm</text>
+<line x1="346.39" y1="299.28" x2="356.39" y2="299.28" stroke="#e63946" stroke-width="1"/>
+<line x1="346.39" y1="475.00" x2="356.39" y2="475.00" stroke="#e63946" stroke-width="1"/>
+<line x1="351.39" y1="299.28" x2="351.39" y2="475.00" stroke="#e63946" stroke-width="1"/>
+<text x="361.39" y="387.14" text-anchor="start" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,361.39,387.14)">L_BOT=400µm</text>
+<line x1="105.00" y1="310.03" x2="105.00" y2="320.03" stroke="#e63946" stroke-width="1"/>
+<line x1="280.72" y1="310.03" x2="280.72" y2="320.03" stroke="#e63946" stroke-width="1"/>
+<line x1="105.00" y1="315.03" x2="280.72" y2="315.03" stroke="#e63946" stroke-width="1"/>
+<text x="192.86" y="329.03" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">L_LEFT=400µm</text>
+<line x1="335.64" y1="310.03" x2="335.64" y2="320.03" stroke="#e63946" stroke-width="1"/>
+<line x1="555.29" y1="310.03" x2="555.29" y2="320.03" stroke="#e63946" stroke-width="1"/>
+<line x1="335.64" y1="315.03" x2="555.29" y2="315.03" stroke="#e63946" stroke-width="1"/>
+<text x="445.46" y="329.03" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">L_RIGHT=500µm</text>
+</svg>

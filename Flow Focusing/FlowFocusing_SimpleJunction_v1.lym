@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+
+# ============================================================
+# USER PARAMETERS (all in microns)
+# ============================================================
+W_TOP    = 50.0     # width of top arm
+W_BOTTOM = 50.0     # width of bottom arm
+W_LEFT   = 200.0    # width of left arm
+W_RIGHT  = 200.0    # width of right arm
+
+L_TOP    = 400.0    # length of top arm
+L_BOTTOM = 400.0    # length of bottom arm
+L_LEFT   = 400.0    # length of left arm
+L_RIGHT  = 400.0    # length of right arm
+
+LAYER_INFO = pya.LayerInfo(1, 0)
+
+X_OFFSET = 0.0
+Y_OFFSET = 0.0
+
+
+# ============================================================
+# GEOMETRY
+#
+# Each arm is a DBox (rectangle) defined by its two corners.
+# The junction centre is (x0, y0).
+# The 4 rectangles overlap at the centre and are merged via
+# pya.EdgeProcessor.boolean_p2p into a single DPolygon.
+#
+# Arm rectangles:
+#   top    : x in [x0 - W_TOP/2,    x0 + W_TOP/2   ]
+#             y in [y0,              y0 + L_TOP      ]
+#   bottom : x in [x0 - W_BOTTOM/2, x0 + W_BOTTOM/2]
+#             y in [y0 - L_BOTTOM,   y0              ]
+#   left   : x in [x0 - L_LEFT,     x0              ]
+#             y in [y0 - W_LEFT/2,   y0 + W_LEFT/2  ]
+#   right  : x in [x0,              x0 + L_RIGHT    ]
+#             y in [y0 - W_RIGHT/2,  y0 + W_RIGHT/2 ]
+#
+# The overlap region at the centre is the union of all four,
+# which EdgeProcessor resolves into a single merged polygon.
+# ============================================================
+
+def make_rect(x1, y1, x2, y2):
+    """Return a DPolygon rectangle from two corners."""
+    return pya.DPolygon([
+        pya.DPoint(x1, y1),
+        pya.DPoint(x2, y1),
+        pya.DPoint(x2, y2),
+        pya.DPoint(x1, y2),
+    ])
+
+
+def build_simple_cross(w_top, w_bottom, w_left, w_right,
+                       l_top, l_bottom, l_left, l_right,
+                       x0=0.0, y0=0.0, dbu=0.001):
+
+    rects = [
+        make_rect(x0 - w_top    / 2.0, y0,           x0 + w_top    / 2.0, y0 + l_top),
+        make_rect(x0 - w_bottom / 2.0, y0 - l_bottom, x0 + w_bottom / 2.0, y0),
+        make_rect(x0 - l_left,         y0 - w_left  / 2.0, x0,              y0 + w_left  / 2.0),
+        make_rect(x0,                  y0 - w_right / 2.0, x0 + l_right,    y0 + w_right / 2.0),
+    ]
+
+    # Convert DPolygons to integer Polygons for EdgeProcessor
+    scale = 1.0 / dbu
+    ipolys = [r.to_itype(dbu) for r in rects]
+
+    ep = pya.EdgeProcessor()
+    merged = ep.boolean_p2p(
+        ipolys, [],
+        pya.EdgeProcessor.ModeOr,
+        True,   # resolve holes
+        True    # min coherence
+    )
+
+    # Convert back to DPolygons
+    return [p.to_dtype(dbu) for p in merged]
+
+
+# ============================================================
+# GET CURRENT VIEW / CELL
+# ============================================================
+lv = pya.LayoutView.current()
+if lv is None:
+    raise RuntimeError("No LayoutView open. Open a layout first.")
+
+cv_index = lv.active_cellview_index
+if cv_index &lt; 0:
+    raise RuntimeError("No active cellview. Open a layout tab and click inside it.")
+
+cv = lv.cellview(cv_index)
+if cv is None or not cv.is_valid():
+    raise RuntimeError("Active cellview is invalid.")
+
+layout = cv.layout()
+if layout is None:
+    raise RuntimeError("No layout found.")
+
+cell = cv.cell
+if cell is None:
+    tops = list(layout.top_cells())
+    if tops:
+        cell = tops[0]
+        print("No active cell selected. Using top cell:", cell.name)
+    else:
+        cell = layout.create_cell("SIMPLE_CROSS")
+        print("Created new cell:", cell.name)
+
+layer_index = layout.layer(LAYER_INFO)
+
+
+# ============================================================
+# BUILD + INSERT
+# ============================================================
+polys = build_simple_cross(
+    w_top=W_TOP, w_bottom=W_BOTTOM, w_left=W_LEFT, w_right=W_RIGHT,
+    l_top=L_TOP, l_bottom=L_BOTTOM, l_left=L_LEFT, l_right=L_RIGHT,
+    x0=X_OFFSET, y0=Y_OFFSET,
+    dbu=layout.dbu,
+)
+
+for poly in polys:
+    cell.shapes(layer_index).insert(poly.to_itype(layout.dbu))
+
+try:
+    lv.add_missing_layers()
+except:
+    pass
+
+try:
+    lv.zoom_fit()
+except:
+    pass
+
+junction_w = W_LEFT  / 2.0 + W_RIGHT  / 2.0
+junction_h = W_TOP   / 2.0 + W_BOTTOM / 2.0
+
+print("Simple cross junction inserted into cell:", cell.name)
+print("n_polygons after merge: %d" % len(polys))
+print("junction_rect_um: %.3f x %.3f" % (junction_w, junction_h))
+print("total_width_um:   %.3f" % (L_LEFT + L_RIGHT + junction_w))
+print("total_height_um:  %.3f" % (L_TOP + L_BOTTOM + junction_h))
+for name, w, l in [("top",    W_TOP,    L_TOP),
+                    ("bottom", W_BOTTOM, L_BOTTOM),
+                    ("left",   W_LEFT,   L_LEFT),
+                    ("right",  W_RIGHT,  L_RIGHT)]:
+    print("arm_%s: width=%.1f um  length=%.1f um" % (name, w, l))</text>
+</klayout-macro>

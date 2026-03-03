@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+
+# ============================================================
+# USER PARAMETERS (all in microns)
+# ============================================================
+W       = 2000.0   # total width
+H       =  600.0   # total height
+L_LEFT  =  200.0   # length of the left  vertical edge
+L_RIGHT =  200.0   # length of the right vertical edge
+
+# Chamfers are derived:
+#   C_LEFT  = (H - L_LEFT)  / 2
+#   C_RIGHT = (H - L_RIGHT) / 2
+
+LAYER_INFO = pya.LayerInfo(1, 0)
+
+X_OFFSET = 0.0
+Y_OFFSET = 0.0
+
+
+# ============================================================
+# GEOMETRY
+#
+# Origin = bottom-left corner of the bounding rectangle.
+# 10-point clockwise contour:
+#
+#       C_L              C_R
+#   +-------+----------+-----+   &lt;- y = H
+#   |        \          \    |
+# L_L         \          \ L_R
+#   |           \          \ |
+#   +-----------+----------+-+   &lt;- y = 0
+#       C_L              C_R
+#
+# Points:
+#   0: (C_L,     H)          top-left  chamfer end
+#   1: (W-C_R,   H)          top-right chamfer start
+#   2: (W,       H-C_R)      top-right chamfer end
+#   3: (W,       C_R)        bottom-right chamfer start
+#   4: (W-C_R,   0)          bottom-right chamfer end
+#   5: (C_L,     0)          bottom-left chamfer end
+#   6: (0,       C_L)        bottom-left chamfer start
+#   7: (0,       H-C_L)      top-left chamfer start
+#   -&gt; closes to 0
+# ============================================================
+
+def build_chamber(w, h, l_left, l_right, x0=0.0, y0=0.0):
+    cl = (h - l_left)  / 2.0
+    cr = (h - l_right) / 2.0
+
+    if cl &lt; 0:
+        raise ValueError("L_LEFT (%.3f) cannot exceed H (%.3f)." % (l_left, h))
+    if cr &lt; 0:
+        raise ValueError("L_RIGHT (%.3f) cannot exceed H (%.3f)." % (l_right, h))
+    if cl + cr &gt; w:
+        raise ValueError(
+            "C_LEFT + C_RIGHT (%.3f) exceeds W (%.3f)." % (cl + cr, w)
+        )
+
+    pts = [
+        pya.DPoint(x0 + cl,      y0 + h),       #  0
+        pya.DPoint(x0 + w - cr,  y0 + h),       #  1
+        pya.DPoint(x0 + w,       y0 + h - cr),  #  2
+        pya.DPoint(x0 + w,       y0 + cr),      #  3
+        pya.DPoint(x0 + w - cr,  y0),           #  4
+        pya.DPoint(x0 + cl,      y0),           #  5
+        pya.DPoint(x0,           y0 + cl),      #  6
+        pya.DPoint(x0,           y0 + h - cl),  #  7
+    ]
+
+    return pya.DPolygon(pts), cl, cr
+
+
+# ============================================================
+# GET CURRENT VIEW / CELL
+# ============================================================
+lv = pya.LayoutView.current()
+if lv is None:
+    raise RuntimeError("No LayoutView open. Open a layout first.")
+
+cv_index = lv.active_cellview_index
+if cv_index &lt; 0:
+    raise RuntimeError("No active cellview. Open a layout tab and click inside it.")
+
+cv = lv.cellview(cv_index)
+if cv is None or not cv.is_valid():
+    raise RuntimeError("Active cellview is invalid.")
+
+layout = cv.layout()
+if layout is None:
+    raise RuntimeError("No layout found.")
+
+cell = cv.cell
+if cell is None:
+    tops = list(layout.top_cells())
+    if tops:
+        cell = tops[0]
+        print("No active cell selected. Using top cell:", cell.name)
+    else:
+        cell = layout.create_cell("CHAMBER")
+        print("Created new cell:", cell.name)
+
+layer_index = layout.layer(LAYER_INFO)
+
+
+# ============================================================
+# BUILD + INSERT
+# ============================================================
+poly, c_left, c_right = build_chamber(
+    w=W, h=H, l_left=L_LEFT, l_right=L_RIGHT,
+    x0=X_OFFSET, y0=Y_OFFSET,
+)
+
+cell.shapes(layer_index).insert(poly.to_itype(layout.dbu))
+
+try:
+    lv.add_missing_layers()
+except:
+    pass
+
+try:
+    lv.zoom_fit()
+except:
+    pass
+
+print("Chamber inserted into cell:", cell.name)
+print("width_um:          %.3f" % W)
+print("height_um:         %.3f" % H)
+print("l_left_um:         %.3f" % L_LEFT)
+print("l_right_um:        %.3f" % L_RIGHT)
+print("chamfer_left_um:   %.3f" % c_left)
+print("chamfer_right_um:  %.3f" % c_right)
+print("top_horiz_um:      %.3f" % (W - c_left - c_right))</text>
+</klayout-macro>

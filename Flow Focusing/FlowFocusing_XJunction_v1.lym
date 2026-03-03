@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+
+# ============================================================
+# USER PARAMETERS (all in microns)
+# ============================================================
+W_TOP    = 50.0     # width of top arm    (dispersed phase inlet)
+W_BOTTOM = 50.0     # width of bottom arm (dispersed phase inlet, or outlet)
+W_LEFT   = 100.0    # width of left arm   (continuous phase inlet)
+W_RIGHT  = 150.0    # width of right arm  (outlet)
+
+L_TOP    = 400.0    # length of top arm
+L_BOTTOM = 400.0    # length of bottom arm
+L_LEFT   = 400.0    # length of left arm
+L_RIGHT  = 400.0    # length of right arm
+
+LAYER_INFO = pya.LayerInfo(1, 0)
+
+X_OFFSET = 0.0
+Y_OFFSET = 0.0
+
+
+# ============================================================
+# GEOMETRY
+#
+# The central rectangle (the "orifice") is defined by the
+# widths of the perpendicular arm pairs:
+#   horizontal extent = W_LEFT/2 + W_RIGHT/2   (set by left/right arms)
+#   vertical   extent = W_TOP/2  + W_BOTTOM/2  (set by top/bottom arms)
+#
+# This means the inner corners of each arm are constrained by
+# the width of the arm that crosses it, not its own width.
+#
+# 16-point clockwise contour from top-left corner of top arm:
+#
+#        |&lt;-W_TOP-&gt;|
+#        |         |
+#   -----+  +---+  +-----   &lt;- y = +W_BOTTOM/2  (inner top of horizontal arms)
+#   left |  |   |  | right
+#   arm  |  |   |  |  arm
+#   -----+  +---+  +-----   &lt;- y = -W_TOP/2     (inner bot of horizontal arms)
+#        |         |
+#        |&lt;-W_BOT-&gt;|
+#
+#   x_inner_left  = -W_LEFT/2
+#   x_inner_right = +W_RIGHT/2
+#   y_inner_top   = +W_BOTTOM/2   &lt;- note: top arm inner edge set by BOTTOM arm width (*)
+#   y_inner_bot   = -W_TOP/2      &lt;- note: bot arm inner edge set by TOP arm width (*)
+#
+# (*) This is the correct interpretation: the inner boundary of the top
+#     arm at the junction is flush with the outer wall of the bottom arm,
+#     and vice versa. Equivalently, the junction rectangle height =
+#     W_TOP/2 + W_BOTTOM/2, centered on Y_OFFSET.
+# ============================================================
+
+def build_cross_polygon(w_top, w_bottom, w_left, w_right,
+                        l_top, l_bottom, l_left, l_right,
+                        x0=0.0, y0=0.0):
+
+    ht = w_top    / 2.0
+    hb = w_bottom / 2.0
+    hl = w_left   / 2.0
+    hr = w_right  / 2.0
+
+    # Inner corner coordinates of the central rectangle
+    xi_l = x0 - hl      # left  inner x
+    xi_r = x0 + hr      # right inner x
+    yi_t = y0 + hb      # top   inner y  (set by bottom arm half-width)
+    yi_b = y0 - ht      # bot   inner y  (set by top    arm half-width)
+
+    pts = [
+        # Top arm
+        pya.DPoint(x0 - ht, yi_t),              #  0  inner top-left
+        pya.DPoint(x0 - ht, y0 + hb + l_top),  #  1  outer top-left
+        pya.DPoint(x0 + ht, y0 + hb + l_top),  #  2  outer top-right
+        pya.DPoint(x0 + ht, yi_t),              #  3  inner top-right
+
+        # Right arm
+        pya.DPoint(xi_r, y0 + hr),              #  4  inner right-top
+        pya.DPoint(x0 + hl + l_right, y0 + hr),#  5  outer right-top
+        pya.DPoint(x0 + hl + l_right, y0 - hr),#  6  outer right-bot
+        pya.DPoint(xi_r, y0 - hr),              #  7  inner right-bot
+
+        # Bottom arm
+        pya.DPoint(x0 + hb, yi_b),              #  8  inner bot-right
+        pya.DPoint(x0 + hb, y0 - ht - l_bottom),#  9  outer bot-right
+        pya.DPoint(x0 - hb, y0 - ht - l_bottom),# 10  outer bot-left
+        pya.DPoint(x0 - hb, yi_b),              # 11  inner bot-left
+
+        # Left arm
+        pya.DPoint(xi_l, y0 - hl),              # 12  inner left-bot
+        pya.DPoint(x0 - hr - l_left, y0 - hl), # 13  outer left-bot
+        pya.DPoint(x0 - hr - l_left, y0 + hl), # 14  outer left-top
+        pya.DPoint(xi_l, y0 + hl),              # 15  inner left-top
+        # closes back to point 0
+    ]
+
+    return pya.DPolygon(pts)
+
+
+# ============================================================
+# GET CURRENT VIEW / CELL
+# ============================================================
+lv = pya.LayoutView.current()
+if lv is None:
+    raise RuntimeError("No LayoutView open. Open a layout first.")
+
+cv_index = lv.active_cellview_index
+if cv_index &lt; 0:
+    raise RuntimeError("No active cellview. Open a layout tab and click inside it.")
+
+cv = lv.cellview(cv_index)
+if cv is None or not cv.is_valid():
+    raise RuntimeError("Active cellview is invalid.")
+
+layout = cv.layout()
+if layout is None:
+    raise RuntimeError("No layout found.")
+
+cell = cv.cell
+if cell is None:
+    tops = list(layout.top_cells())
+    if tops:
+        cell = tops[0]
+        print("No active cell selected. Using top cell:", cell.name)
+    else:
+        cell = layout.create_cell("CROSS_JUNCTION")
+        print("Created new cell:", cell.name)
+
+layer_index = layout.layer(LAYER_INFO)
+
+
+# ============================================================
+# BUILD + INSERT
+# ============================================================
+poly = build_cross_polygon(
+    w_top=W_TOP, w_bottom=W_BOTTOM, w_left=W_LEFT, w_right=W_RIGHT,
+    l_top=L_TOP, l_bottom=L_BOTTOM, l_left=L_LEFT, l_right=L_RIGHT,
+    x0=X_OFFSET, y0=Y_OFFSET,
+)
+
+cell.shapes(layer_index).insert(poly.to_itype(layout.dbu))
+
+try:
+    lv.add_missing_layers()
+except:
+    pass
+
+try:
+    lv.zoom_fit()
+except:
+    pass
+
+junction_w = W_LEFT  / 2.0 + W_RIGHT  / 2.0
+junction_h = W_TOP   / 2.0 + W_BOTTOM / 2.0
+
+print("Cross junction inserted into cell:", cell.name)
+print("junction_rect_um: %.3f x %.3f" % (junction_w, junction_h))
+print("total_width_um:  %.3f" % (L_LEFT + L_RIGHT + junction_w))
+print("total_height_um: %.3f" % (L_TOP + L_BOTTOM + junction_h))
+for name, w, l in [("top",    W_TOP,    L_TOP),
+                    ("bottom", W_BOTTOM, L_BOTTOM),
+                    ("left",   W_LEFT,   L_LEFT),
+                    ("right",  W_RIGHT,  L_RIGHT)]:
+    print("arm_%s: width=%.1f um  length=%.1f um" % (name, w, l))</text>
+</klayout-macro>

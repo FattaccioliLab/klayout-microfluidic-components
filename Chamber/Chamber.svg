@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="710" height="468" viewBox="0 0 710 468">
+  <rect width="710" height="468" fill="white"/>
+  <text x="355.0" y="22" text-anchor="middle" font-family="monospace" font-size="13" font-weight="bold" fill="#1a1a2e">Chamber — parameters</text>
+<polygon points="187.00,95.00 547.00,95.00 595.00,143.00 595.00,335.00 547.00,383.00 187.00,383.00 115.00,311.00 115.00,167.00" fill="#eef2ff" stroke="#1a1a2e" stroke-width="1.8" stroke-linejoin="round"/>
+<line x1="115.00" y1="76.00" x2="115.00" y2="86.00" stroke="#e63946" stroke-width="1"/>
+<line x1="595.00" y1="76.00" x2="595.00" y2="86.00" stroke="#e63946" stroke-width="1"/>
+<line x1="115.00" y1="81.00" x2="595.00" y2="81.00" stroke="#e63946" stroke-width="1"/>
+<text x="355.00" y="73.00" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">W=1000µm</text>
+<line x1="604.00" y1="95.00" x2="614.00" y2="95.00" stroke="#e63946" stroke-width="1"/>
+<line x1="604.00" y1="383.00" x2="614.00" y2="383.00" stroke="#e63946" stroke-width="1"/>
+<line x1="609.00" y1="95.00" x2="609.00" y2="383.00" stroke="#e63946" stroke-width="1"/>
+<text x="619.00" y="239.00" text-anchor="start" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,619.00,239.00)">H=600µm</text>
+<line x1="96.00" y1="167.00" x2="106.00" y2="167.00" stroke="#e63946" stroke-width="1"/>
+<line x1="96.00" y1="311.00" x2="106.00" y2="311.00" stroke="#e63946" stroke-width="1"/>
+<line x1="101.00" y1="167.00" x2="101.00" y2="311.00" stroke="#e63946" stroke-width="1"/>
+<text x="91.00" y="239.00" text-anchor="end" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,91.00,239.00)">L_LEFT=300µm</text>
+<line x1="626.00" y1="143.00" x2="636.00" y2="143.00" stroke="#e63946" stroke-width="1"/>
+<line x1="626.00" y1="335.00" x2="636.00" y2="335.00" stroke="#e63946" stroke-width="1"/>
+<line x1="631.00" y1="143.00" x2="631.00" y2="335.00" stroke="#e63946" stroke-width="1"/>
+<text x="641.00" y="239.00" text-anchor="start" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,641.00,239.00)">L_RIGHT=400µm</text>
+<line x1="115.00" y1="311.00" x2="187.00" y2="383.00" stroke="#aaa" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="129.00" y="351.00" font-family="monospace" font-size="10" fill="#888">C_L=150µm</text>
+<line x1="595.00" y1="335.00" x2="547.00" y2="383.00" stroke="#aaa" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="575.00" y="363.00" font-family="monospace" font-size="10" fill="#888">C_R=100µm</text>
+</svg>
