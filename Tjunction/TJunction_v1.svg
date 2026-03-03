@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="430" viewBox="0 0 680 430">
+  <rect width="680" height="430" fill="white"/>
+  <text x="340.0" y="22" text-anchor="middle" font-family="monospace" font-size="13" font-weight="bold" fill="#1a1a2e">TJunction — parameters</text>
+<polygon points="301.67,100.00 327.22,100.00 327.22,278.89 570.00,278.89 570.00,330.00 110.00,330.00 110.00,278.89 301.67,278.89" fill="#eef2ff" stroke="#1a1a2e" stroke-width="1.8" stroke-linejoin="round"/>
+<circle cx="314.44" cy="304.44" r="3" fill="#1a1a2e"/>
+<line x1="301.67" y1="81.00" x2="301.67" y2="91.00" stroke="#e63946" stroke-width="1"/>
+<line x1="327.22" y1="81.00" x2="327.22" y2="91.00" stroke="#e63946" stroke-width="1"/>
+<line x1="301.67" y1="86.00" x2="327.22" y2="86.00" stroke="#e63946" stroke-width="1"/>
+<text x="314.44" y="78.00" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">W_TOP=50µm</text>
+<line x1="336.22" y1="100.00" x2="346.22" y2="100.00" stroke="#e63946" stroke-width="1"/>
+<line x1="336.22" y1="278.89" x2="346.22" y2="278.89" stroke="#e63946" stroke-width="1"/>
+<line x1="341.22" y1="100.00" x2="341.22" y2="278.89" stroke="#e63946" stroke-width="1"/>
+<text x="351.22" y="189.44" text-anchor="start" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,351.22,189.44)">L_TOP=400µm</text>
+<line x1="91.00" y1="278.89" x2="101.00" y2="278.89" stroke="#e63946" stroke-width="1"/>
+<line x1="91.00" y1="330.00" x2="101.00" y2="330.00" stroke="#e63946" stroke-width="1"/>
+<line x1="96.00" y1="278.89" x2="96.00" y2="330.00" stroke="#e63946" stroke-width="1"/>
+<text x="86.00" y="304.44" text-anchor="end" dominant-baseline="middle" font-family="monospace" font-size="11" fill="#e63946" transform="rotate(-90,86.00,304.44)">W_MAIN=100µm</text>
+<line x1="110.00" y1="339.00" x2="110.00" y2="349.00" stroke="#e63946" stroke-width="1"/>
+<line x1="314.44" y1="339.00" x2="314.44" y2="349.00" stroke="#e63946" stroke-width="1"/>
+<line x1="110.00" y1="344.00" x2="314.44" y2="344.00" stroke="#e63946" stroke-width="1"/>
+<text x="212.22" y="358.00" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">L_LEFT=400µm</text>
+<line x1="314.44" y1="339.00" x2="314.44" y2="349.00" stroke="#e63946" stroke-width="1"/>
+<line x1="570.00" y1="339.00" x2="570.00" y2="349.00" stroke="#e63946" stroke-width="1"/>
+<line x1="314.44" y1="344.00" x2="570.00" y2="344.00" stroke="#e63946" stroke-width="1"/>
+<text x="442.22" y="358.00" text-anchor="middle" font-family="monospace" font-size="11" fill="#e63946">L_RIGHT=500µm</text>
+</svg>

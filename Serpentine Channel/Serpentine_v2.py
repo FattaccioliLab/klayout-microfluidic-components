@@ -4,7 +4,7 @@ import math
 # ============================================================
 # USER PARAMETERS (all in microns)
 # ============================================================
-TOTAL_LENGTH = 40000.0      # total centerline length INCLUDING both vertical legs
+TOTAL_LENGTH = 6478.1       # total centerline length INCLUDING both vertical legs
 CHANNEL_WIDTH = 50.0       # channel width
 PITCH = 150.0               # centerline-to-centerline pitch
 EXT_WIDTH = 1000.0          # external horizontal width of serpentine footprint
@@ -93,26 +93,24 @@ def solve_serpentine_midlegs(total_length, w, pitch, ext_width, leg):
     for N in range(2, 100000):
         S = total_length - 2.0 * leg - (N - 1) * math.pi * R - (N - 2) * H
         # S = h_first + h_last, with each in [H/2, H]
-        if S < H - 1e-9:
+        if S < H - 0.1:
             break
-        if S <= 2.0 * H + 1e-9:
-            # balanced split if possible
-            h_first = S / 2.0
-            h_last = S - h_first
+        if S <= 2.0 * H + 0.1:
+            # prefer h_first = H so inlet/outlet legs are centred on the footprint
+            h_first = min(H, max(H / 2.0, S / 2.0))
+            h_last  = S - h_first
 
-            # if numerical issues, clamp lightly
-            h_first = max(H / 2.0, min(H, h_first))
-            h_last = S - h_first
-
-            # if clamping moved h_last out of bounds, fix by assigning one side
             if h_last < H / 2.0:
-                h_last = H / 2.0
+                h_last  = H / 2.0
                 h_first = S - h_last
             if h_last > H:
-                h_last = H
+                h_last  = H
                 h_first = S - h_last
 
-            if (H / 2.0 - 1e-9) <= h_first <= (H + 1e-9) and (H / 2.0 - 1e-9) <= h_last <= (H + 1e-9):
+            h_first = max(H / 2.0, min(H, h_first))
+            h_last  = max(H / 2.0, min(H, S - h_first))
+
+            if (H / 2.0 - 0.1) <= h_first <= (H + 0.1) and (H / 2.0 - 0.1) <= h_last <= (H + 0.1):
                 return N, h_first, h_last, H, R
 
     raise ValueError("No valid serpentine found for these parameters")
@@ -238,7 +236,10 @@ pts, info = build_serpentine_points_midlegs(
 )
 
 dpath = pya.DPath(pts, CHANNEL_WIDTH)
-cell.shapes(layer_index).insert(dpath.to_itype(layout.dbu))
+dpath.bgn_ext = 0
+dpath.end_ext = 0
+dpoly = dpath.polygon()
+cell.shapes(layer_index).insert(dpoly.to_itype(layout.dbu))
 
 try:
     lv.add_missing_layers()
