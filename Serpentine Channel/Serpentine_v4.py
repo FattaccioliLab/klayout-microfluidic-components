@@ -4,7 +4,7 @@ import math
 # ============================================================
 # USER PARAMETERS (all in microns)
 # ============================================================
-TOTAL_LENGTH = 6478.1       # total centerline length INCLUDING both vertical legs
+TOTAL_LENGTH = 40000.0      # total centerline length INCLUDING both vertical legs
 CHANNEL_WIDTH = 50.0       # channel width
 PITCH = 150.0               # centerline-to-centerline pitch
 EXT_WIDTH = 1000.0          # external horizontal width of serpentine footprint
@@ -38,85 +38,49 @@ def add_arc_points(pts, cx, cy, r, a0, a1, nseg):
 
 def solve_serpentine_midlegs(total_length, w, pitch, ext_width, leg):
     """
-    Solve a serpentine where:
-      - the inlet leg connects to the midpoint of the first run
-      - the outlet leg connects to the midpoint of the last run
+    Solve a centred serpentine: inlet and outlet legs always at EXT_WIDTH/2.
 
-    Let:
-      R = pitch / 2
-      H = full horizontal tangent-to-tangent span
+    Centring requires h_first = h_last = H, giving:
+        TOTAL = 2*LEG + (N-1)*pi*R + N*H
 
-    Then:
-      total_length =
-          2*leg
-        + (N-2)*H
-        + h_first + h_last
-        + (N-1)*pi*R
-
-    with:
-      H/2 <= h_first <= H
-      H/2 <= h_last <= H
-
-    because the midpoint must lie on the first/last run.
+    For a requested total_length, find the integer N that minimises
+    |total_centred(N) - total_length|, then use total_centred(N) as the
+    actual length. CHANNEL_WIDTH is preserved exactly.
     """
-    if total_length <= 0:
-        raise ValueError("TOTAL_LENGTH must be > 0")
-    if w <= 0:
-        raise ValueError("CHANNEL_WIDTH must be > 0")
-    if pitch <= 0:
-        raise ValueError("PITCH must be > 0")
-    if ext_width <= 0:
-        raise ValueError("EXT_WIDTH must be > 0")
-    if leg < 0:
-        raise ValueError("VERTICAL_LEG must be >= 0")
+    if total_length <= 0:  raise ValueError("TOTAL_LENGTH must be > 0")
+    if w <= 0:             raise ValueError("CHANNEL_WIDTH must be > 0")
+    if pitch <= 0:         raise ValueError("PITCH must be > 0")
+    if ext_width <= 0:     raise ValueError("EXT_WIDTH must be > 0")
+    if leg < 0:            raise ValueError("VERTICAL_LEG must be >= 0")
+    if pitch <= 2.0 * w:   raise ValueError("PITCH must be strictly greater than 2 x CHANNEL_WIDTH")
 
-    if pitch <= 2.0 * w:
-        raise ValueError("PITCH must be strictly greater than 2 x CHANNEL_WIDTH")
-
-    # Bend radius from pitch
     R = pitch / 2.0
-
-    # Full tangent-to-tangent horizontal span
-    # ext width = (R + w/2) + H + (R + w/2) = pitch + w + H
     H = ext_width - (pitch + w)
     if H <= 0:
         raise ValueError("EXT_WIDTH too small. Need EXT_WIDTH > PITCH + CHANNEL_WIDTH")
 
-    # Minimum possible: 1 U-bend (N=2), and both first/last runs must at least reach their midpoint
-    min_len = 2.0 * leg + math.pi * R + H
-    if total_length < min_len:
-        raise ValueError(
-            "TOTAL_LENGTH too short for midpoint-connected legs.\n"
-            "Minimum feasible length is about %.3f µm" % min_len
-        )
+    # N_exact solves total_centred(N) = total_length exactly
+    # total_centred = 2*LEG + (N-1)*pi*R + N*H
+    # N*(H + pi*R) = total_length - 2*LEG + pi*R
+    N_exact = (total_length - 2.0*leg + math.pi*R) / (H + math.pi*R)
+    if N_exact < 2.0:
+        raise ValueError("TOTAL_LENGTH too short for these parameters.")
 
-    for N in range(2, 100000):
-        S = total_length - 2.0 * leg - (N - 1) * math.pi * R - (N - 2) * H
-        # S = h_first + h_last, with each in [H/2, H]
-        if S < H - 0.1:
-            break
-        if S <= 2.0 * H + 0.1:
-            # prefer h_first = H so inlet/outlet legs are centred on the footprint
-            h_first = min(H, max(H / 2.0, S / 2.0))
-            h_last  = S - h_first
+    # Try floor and ceil, pick the one closest to total_length
+    best = None
+    for N in [int(N_exact), int(N_exact) + 1]:
+        if N < 2:
+            continue
+        total_centred = 2.0*leg + (N-1)*math.pi*R + N*H
+        if best is None or abs(total_centred - total_length) < abs(best[1] - total_length):
+            best = (N, total_centred)
 
-            if h_last < H / 2.0:
-                h_last  = H / 2.0
-                h_first = S - h_last
-            if h_last > H:
-                h_last  = H
-                h_first = S - h_last
+    N, total_centred = best
+    return N, H, H, H, R, total_centred
 
-            h_first = max(H / 2.0, min(H, h_first))
-            h_last  = max(H / 2.0, min(H, S - h_first))
-
-            if (H / 2.0 - 0.1) <= h_first <= (H + 0.1) and (H / 2.0 - 0.1) <= h_last <= (H + 0.1):
-                return N, h_first, h_last, H, R
-
-    raise ValueError("No valid serpentine found for these parameters")
 
 def build_serpentine_points_midlegs(total_length, w, pitch, ext_width, leg, x0=0.0, y0=0.0, arc_points=32):
-    N, h_first, h_last, H, R = solve_serpentine_midlegs(total_length, w, pitch, ext_width, leg)
+    N, h_first, h_last, H, R, _ = solve_serpentine_midlegs(total_length, w, pitch, ext_width, leg)
 
     # Tangency x positions
     x_left = x0 + (R + w / 2.0)
@@ -224,8 +188,13 @@ layer_index = layout.layer(LAYER_INFO)
 # ============================================================
 # BUILD + INSERT
 # ============================================================
+_sol = solve_serpentine_midlegs(TOTAL_LENGTH, CHANNEL_WIDTH, PITCH, EXT_WIDTH, VERTICAL_LEG)
+TOTAL_CENTRED = _sol[5]
+if abs(TOTAL_CENTRED - TOTAL_LENGTH) > 0.1:
+    print("Note: TOTAL_LENGTH adjusted from %.2f to %.2f um for centred legs." % (TOTAL_LENGTH, TOTAL_CENTRED))
+
 pts, info = build_serpentine_points_midlegs(
-    total_length=TOTAL_LENGTH,
+    total_length=TOTAL_CENTRED,
     w=CHANNEL_WIDTH,
     pitch=PITCH,
     ext_width=EXT_WIDTH,
