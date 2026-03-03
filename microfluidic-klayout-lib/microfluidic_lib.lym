@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description>MicrofluidicLib - PCells (autoload)</description>
+ <version>2.0</version>
+ <category>pymacros</category>
+ <prolog />
+ <epilog />
+ <doc />
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut />
+ <show-in-menu>false</show-in-menu>
+ <group-name />
+ <menu-path />
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name />
+ <text>
+import pya
+import math
+
+
+# ===========================================================================
+# Helpers
+# ===========================================================================
+
+def _to_ipts(dpts, scale):
+    return [pya.Point(int(round(p.x * scale)), int(round(p.y * scale)))
+            for p in dpts]
+
+def _make_rect(x1, y1, x2, y2):
+    return pya.DPolygon([
+        pya.DPoint(x1, y1), pya.DPoint(x2, y1),
+        pya.DPoint(x2, y2), pya.DPoint(x1, y2),
+    ])
+
+def _merge_polys(dpolys, dbu):
+    ipolys = [p.to_itype(dbu) for p in dpolys]
+    ep = pya.EdgeProcessor()
+    merged = ep.boolean_p2p(ipolys, [], pya.EdgeProcessor.ModeOr, True, True)
+    return [p.to_dtype(dbu) for p in merged]
+
+
+# ===========================================================================
+# 1. SerpentineChannel  (v4 - centred legs, polygon output)
+# ===========================================================================
+
+class SerpentineChannel(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("total_length",  self.TypeDouble, "Total length (um)",            default=10000.0)
+        self.param("channel_width", self.TypeDouble, "Channel width (um)",           default=50.0)
+        self.param("pitch",         self.TypeDouble, "Centreline pitch (um)",        default=150.0)
+        self.param("ext_width",     self.TypeDouble, "External footprint width (um)",default=1000.0)
+        self.param("vertical_leg",  self.TypeDouble, "Inlet/outlet leg length (um)", default=250.0)
+        self.param("n_arc",         self.TypeInt,    "Arc segments / 180 turn",      default=32)
+        self.param("layer",         self.TypeLayer,  "Layer",                        default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "Serpentine(L=%.0f W=%.0f P=%.0f)" % (
+            self.total_length, self.channel_width, self.pitch)
+
+    def coerce_parameters_impl(self):
+        if self.pitch &lt;= 1.4 * self.channel_width:
+            self.pitch = 1.5 * self.channel_width
+        if self.ext_width &lt;= self.pitch + self.channel_width:
+            self.ext_width = self.pitch + self.channel_width + 10.0
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu  = self.layout.dbu
+        L    = self.total_length
+        W    = self.channel_width
+        P    = self.pitch
+        EW   = self.ext_width
+        LEG  = self.vertical_leg
+        NARC = self.n_arc
+        layer = self.layer_layer
+
+        R = P / 2.0
+        H = EW - (P + W)
+        N_exact = max(2.0, (L - 2.0*LEG + math.pi*R) / (H + math.pi*R))
+
+        best = None
+        for N in [int(N_exact), int(N_exact) + 1]:
+            if N &lt; 2: continue
+            tc = 2.0*LEG + (N-1)*math.pi*R + N*H
+            if best is None or abs(tc - L) &lt; abs(best[1] - L):
+                best = (N, tc)
+        N, total_centred = best
+
+        x_left  = R + W / 2.0
+        x_right = EW - (R + W / 2.0)
+        x_mid   = x_right - H / 2.0
+
+        pts = []
+
+        def ap(x, y):
+            if pts and abs(pts[-1].x - x) &lt; 1e-9 and abs(pts[-1].y - y) &lt; 1e-9:
+                return
+            pts.append(pya.DPoint(x, y))
+
+        def arc(cx, cy, r, a0, a1):
+            for i in range(1, NARC + 1):
+                t = a0 + (a1 - a0) * i / NARC
+                ap(cx + r * math.cos(t), cy + r * math.sin(t))
+
+        ap(x_mid, 0.0)
+        ap(x_mid, -LEG)
+        ap(x_right, -LEG)
+        y = -LEG
+        for i in range(N - 1):
+            even = (i % 2 == 0)
+            if even:
+                arc(x_right, y - R, R, math.pi/2, -math.pi/2)
+                y -= P
+                if i == N - 2:
+                    ap(x_mid, y); ap(x_mid, y - LEG)
+                else:
+                    ap(x_left, y)
+            else:
+                arc(x_left, y - R, R, math.pi/2, 3*math.pi/2)
+                y -= P
+                if i == N - 2:
+                    ap(x_mid, y); ap(x_mid, y - LEG)
+                else:
+                    ap(x_right, y)
+
+        dpath = pya.DPath(pts, W)
+        dpath.bgn_ext = 0
+        dpath.end_ext = 0
+        self.cell.shapes(layer).insert(dpath.polygon().to_itype(dbu))
+
+
+# ===========================================================================
+# 2. StraightChannel  (v1 - arbitrary angle, polygon)
+# ===========================================================================
+
+class StraightChannel(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("length",    self.TypeDouble, "Length (um)",                   default=1000.0)
+        self.param("width",     self.TypeDouble, "Width (um)",                    default=50.0)
+        self.param("angle_deg", self.TypeDouble, "Angle CCW from +x axis (deg)",  default=0.0)
+        self.param("layer",     self.TypeLayer,  "Layer",                         default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "StraightChannel(L=%.0f W=%.0f A=%.1f)" % (
+            self.length, self.width, self.angle_deg)
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+        L, W = self.length, self.width
+        A  = math.radians(self.angle_deg)
+        ux, uy =  math.cos(A),  math.sin(A)
+        nx, ny = -math.sin(A),  math.cos(A)
+        hw = W / 2.0
+        pts = [
+            pya.DPoint(      + hw*nx,       + hw*ny),
+            pya.DPoint(L*ux  + hw*nx, L*uy  + hw*ny),
+            pya.DPoint(L*ux  - hw*nx, L*uy  - hw*ny),
+            pya.DPoint(      - hw*nx,       - hw*ny),
+        ]
+        self.cell.shapes(self.layer_layer).insert(pya.DPolygon(pts).to_itype(dbu))
+
+
+# ===========================================================================
+# 3. TJunction  (v1 - EdgeProcessor merge, polygon)
+# ===========================================================================
+
+class TJunction(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("w_main",  self.TypeDouble, "Main channel width (um)",    default=100.0)
+        self.param("w_top",   self.TypeDouble, "Lateral arm width (um)",     default=50.0)
+        self.param("l_left",  self.TypeDouble, "Left arm length (um)",       default=400.0)
+        self.param("l_right", self.TypeDouble, "Right arm length (um)",      default=500.0)
+        self.param("l_top",   self.TypeDouble, "Top arm length (um)",        default=400.0)
+        self.param("layer",   self.TypeLayer,  "Layer",                      default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "TJunction(Wm=%.0f Wt=%.0f)" % (self.w_main, self.w_top)
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+        hm  = self.w_main / 2.0
+        ht  = self.w_top  / 2.0
+        rects = [
+            _make_rect(-ht,          0,            ht,           self.l_top),
+            _make_rect(-self.l_left, -hm,          0,            hm),
+            _make_rect(0,            -hm,          self.l_right, hm),
+        ]
+        for poly in _merge_polys(rects, dbu):
+            self.cell.shapes(self.layer_layer).insert(poly.to_itype(dbu))
+
+
+# ===========================================================================
+# 4. YChannel  (v1 - exact 9-point polygon)
+# ===========================================================================
+
+class YChannel(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("theta_deg", self.TypeDouble, "Half-angle (deg)",               default=30.0)
+        self.param("w_upper",   self.TypeDouble, "Upper inlet width (um)",         default=80.0)
+        self.param("w_lower",   self.TypeDouble, "Lower inlet width (um)",         default=80.0)
+        self.param("w_outlet",  self.TypeDouble, "Outlet width (um)",              default=150.0)
+        self.param("l_upper",   self.TypeDouble, "Upper inlet length (um)",        default=400.0)
+        self.param("l_lower",   self.TypeDouble, "Lower inlet length (um)",        default=400.0)
+        self.param("l_outlet",  self.TypeDouble, "Outlet length (um)",             default=500.0)
+        self.param("layer",     self.TypeLayer,  "Layer",                          default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "YChannel(th=%.0f Wu=%.0f Wl=%.0f Wo=%.0f)" % (
+            self.theta_deg, self.w_upper, self.w_lower, self.w_outlet)
+
+    def coerce_parameters_impl(self):
+        if self.theta_deg &lt;= 0:  self.theta_deg = 1.0
+        if self.theta_deg &gt;= 90: self.theta_deg = 89.0
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+
+        def wall_at_x(start, direction, x_target):
+            t = (x_target - start[0]) / direction[0]
+            return (x_target, start[1] + t * direction[1])
+
+        def line_intersect(p1, d1, p2, d2):
+            cross = d1[0]*d2[1] - d1[1]*d2[0]
+            if abs(cross) &lt; 1e-12:
+                raise ValueError("Parallel walls.")
+            dx = p2[0]-p1[0]; dy = p2[1]-p1[1]
+            t  = (dx*d2[1] - dy*d2[0]) / cross
+            return (p1[0]+t*d1[0], p1[1]+t*d1[1])
+
+        T    = math.radians(self.theta_deg)
+        A_up =  math.pi - T
+        A_lo = -(math.pi - T)
+        u_up = (math.cos(A_up), math.sin(A_up))
+        u_lo = (math.cos(A_lo), math.sin(A_lo))
+        u_ot = (1.0, 0.0)
+
+        hw_up = self.w_upper  / 2.0
+        hw_lo = self.w_lower  / 2.0
+        hw_ot = self.w_outlet / 2.0
+
+        up_top_s = (0.0,  hw_up);  up_bot_s = (0.0, -hw_up)
+        lo_top_s = (0.0,  hw_lo);  lo_bot_s = (0.0, -hw_lo)
+        ot_top_s = (0.0,  hw_ot);  ot_bot_s = (0.0, -hw_ot)
+
+        up_cap_top = wall_at_x(up_top_s, u_up, -self.l_upper)
+        up_cap_bot = wall_at_x(up_bot_s, u_up, -self.l_upper)
+        lo_cap_top = wall_at_x(lo_top_s, u_lo, -self.l_lower)
+        lo_cap_bot = wall_at_x(lo_bot_s, u_lo, -self.l_lower)
+        ot_cap_top = ( self.l_outlet,  hw_ot)
+        ot_cap_bot = ( self.l_outlet, -hw_ot)
+
+        P_top = line_intersect(ot_top_s, u_ot, up_top_s, u_up)
+        P_mid = line_intersect(up_bot_s, u_up, lo_top_s, u_lo)
+        P_bot = line_intersect(lo_bot_s, u_lo, ot_bot_s, u_ot)
+
+        pts_um = [ot_cap_top, P_top, up_cap_top, up_cap_bot,
+                  P_mid, lo_cap_top, lo_cap_bot, P_bot, ot_cap_bot]
+        pts = [pya.DPoint(p[0], p[1]) for p in pts_um]
+        self.cell.shapes(self.layer_layer).insert(pya.DPolygon(pts).to_itype(dbu))
+
+
+# ===========================================================================
+# 5. FFSimpleJunction  (flow-focusing simple cross - EdgeProcessor merge)
+# ===========================================================================
+
+class FFSimpleJunction(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("w_top",    self.TypeDouble, "Top arm width (um)",    default=50.0)
+        self.param("w_bottom", self.TypeDouble, "Bottom arm width (um)", default=50.0)
+        self.param("w_left",   self.TypeDouble, "Left arm width (um)",   default=200.0)
+        self.param("w_right",  self.TypeDouble, "Right arm width (um)",  default=200.0)
+        self.param("l_top",    self.TypeDouble, "Top arm length (um)",   default=400.0)
+        self.param("l_bottom", self.TypeDouble, "Bottom arm length (um)",default=400.0)
+        self.param("l_left",   self.TypeDouble, "Left arm length (um)",  default=400.0)
+        self.param("l_right",  self.TypeDouble, "Right arm length (um)", default=400.0)
+        self.param("layer",    self.TypeLayer,  "Layer",                 default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "FFSimpleJunction(Wt=%.0f Wl=%.0f)" % (self.w_top, self.w_left)
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+        rects = [
+            _make_rect(-self.w_top/2,    0,              self.w_top/2,    self.l_top),
+            _make_rect(-self.w_bottom/2, -self.l_bottom, self.w_bottom/2, 0),
+            _make_rect(-self.l_left,     -self.w_left/2, 0,               self.w_left/2),
+            _make_rect(0,                -self.w_right/2,self.l_right,    self.w_right/2),
+        ]
+        for poly in _merge_polys(rects, dbu):
+            self.cell.shapes(self.layer_layer).insert(poly.to_itype(dbu))
+
+
+# ===========================================================================
+# 6. FFXJunction  (flow-focusing X junction - exact 16-point polygon)
+# ===========================================================================
+
+class FFXJunction(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("w_top",    self.TypeDouble, "Top arm width (um)",    default=50.0)
+        self.param("w_bottom", self.TypeDouble, "Bottom arm width (um)", default=50.0)
+        self.param("w_left",   self.TypeDouble, "Left arm width (um)",   default=100.0)
+        self.param("w_right",  self.TypeDouble, "Right arm width (um)",  default=150.0)
+        self.param("l_top",    self.TypeDouble, "Top arm length (um)",   default=400.0)
+        self.param("l_bottom", self.TypeDouble, "Bottom arm length (um)",default=400.0)
+        self.param("l_left",   self.TypeDouble, "Left arm length (um)",  default=1000.0)
+        self.param("l_right",  self.TypeDouble, "Right arm length (um)", default=400.0)
+        self.param("layer",    self.TypeLayer,  "Layer",                 default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "FFXJunction(Wt=%.0f Wl=%.0f Wr=%.0f)" % (
+            self.w_top, self.w_left, self.w_right)
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+        ht = self.w_top    / 2.0
+        hb = self.w_bottom / 2.0
+        hl = self.w_left   / 2.0
+        hr = self.w_right  / 2.0
+        pts = [
+            pya.DPoint(-ht,  hb),
+            pya.DPoint(-ht,                hb + self.l_top            ),
+            pya.DPoint( ht,                hb + self.l_top            ),
+            pya.DPoint( ht,                hb                         ),
+            pya.DPoint( hr,                hr                         ),
+            pya.DPoint( hl + self.l_right, hr                         ),
+            pya.DPoint( hl + self.l_right,-hr                         ),
+            pya.DPoint( hr,               -hr                         ),
+            pya.DPoint( hb,               -ht                         ),
+            pya.DPoint( hb,               -ht - self.l_bottom         ),
+            pya.DPoint(-hb,               -ht - self.l_bottom         ),
+            pya.DPoint(-hb,               -ht                         ),
+            pya.DPoint(-hl,               -hl                         ),
+            pya.DPoint(-hr - self.l_left, -hl                         ),
+            pya.DPoint(-hr - self.l_left,  hl                         ),
+            pya.DPoint(-hl,                hl                         ),
+        ]
+        self.cell.shapes(self.layer_layer).insert(pya.DPolygon(pts).to_itype(dbu))
+
+
+# ===========================================================================
+# 7. Chamber  (v1 - chamfered rectangle)
+# ===========================================================================
+
+class Chamber(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("width",   self.TypeDouble, "Total width (um)",               default=2000.0)
+        self.param("height",  self.TypeDouble, "Total height (um)",              default=600.0)
+        self.param("l_left",  self.TypeDouble, "Left vertical edge length (um)", default=200.0)
+        self.param("l_right", self.TypeDouble, "Right vertical edge length (um)",default=200.0)
+        self.param("layer",   self.TypeLayer,  "Layer",                          default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "Chamber(W=%.0f H=%.0f)" % (self.width, self.height)
+
+    def coerce_parameters_impl(self):
+        if self.l_left  &gt; self.height: self.l_left  = self.height
+        if self.l_right &gt; self.height: self.l_right = self.height
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+        W, H = self.width, self.height
+        cl   = (H - self.l_left)  / 2.0
+        cr   = (H - self.l_right) / 2.0
+        pts  = [
+            pya.DPoint(cl,     H),
+            pya.DPoint(W - cr, H),
+            pya.DPoint(W,      H - cr),
+            pya.DPoint(W,      cr),
+            pya.DPoint(W - cr, 0),
+            pya.DPoint(cl,     0),
+            pya.DPoint(0,      cl),
+            pya.DPoint(0,      H - cl),
+        ]
+        self.cell.shapes(self.layer_layer).insert(pya.DPolygon(pts).to_itype(dbu))
+
+
+# ===========================================================================
+# 8. Outlet  (v1 - circle + radial trapezoid array)
+# ===========================================================================
+
+class Outlet(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super().__init__()
+        self.param("radius",      self.TypeDouble, "Circle radius (um)",         default=500.0)
+        self.param("n_inlets",    self.TypeInt,    "Number of inlet arms",       default=8)
+        self.param("angle_start", self.TypeDouble, "Start angle (deg)",          default=0.0)
+        self.param("angle_end",   self.TypeDouble, "End angle (deg)",            default=180.0)
+        self.param("w_inner",     self.TypeDouble, "Trapezoid inner width (um)", default=200.0)
+        self.param("w_outer",     self.TypeDouble, "Trapezoid outer width (um)", default=400.0)
+        self.param("l_trap",      self.TypeDouble, "Trapezoid length (um)",      default=500.0)
+        self.param("gap",         self.TypeDouble, "Radial gap (um)",            default=100.0)
+        self.param("n_arc",       self.TypeInt,    "Circle arc segments",        default=128)
+        self.param("layer",       self.TypeLayer,  "Layer",                      default=pya.LayerInfo(1, 0))
+
+    def display_text_impl(self):
+        return "Outlet(R=%.0f N=%d)" % (self.radius, self.n_inlets)
+
+    def coerce_parameters_impl(self):
+        if self.n_inlets &lt; 1: self.n_inlets = 1
+        if self.n_arc   &lt; 8:  self.n_arc    = 8
+
+    def can_create_from_shape_impl(self):
+        return False
+
+    def produce_impl(self):
+        dbu   = self.layout.dbu
+        layer = self.layer_layer
+        R     = self.radius
+        N     = self.n_inlets
+        a0    = math.radians(self.angle_start)
+        a1    = math.radians(self.angle_end)
+
+        circ_pts = [pya.DPoint(R * math.cos(2*math.pi*i/self.n_arc),
+                               R * math.sin(2*math.pi*i/self.n_arc))
+                    for i in range(self.n_arc)]
+        self.cell.shapes(layer).insert(pya.DPolygon(circ_pts).to_itype(dbu))
+
+        angles = ([a0 + i*(a1-a0)/(N-1) for i in range(N)] if N &gt; 1
+                  else [(a0+a1)/2.0])
+        r_c  = R + self.gap + self.l_trap / 2.0
+        hi   = self.w_inner / 2.0
+        ho   = self.w_outer / 2.0
+        hl   = self.l_trap  / 2.0
+
+        for angle in angles:
+            ca, sa = math.cos(angle), math.sin(angle)
+            cx, cy = r_c * ca, r_c * sa
+            local  = [(-hl, -hi), (-hl, hi), (hl, ho), (hl, -ho)]
+            pts    = [pya.DPoint(lx*ca - ly*sa + cx,
+                                 lx*sa + ly*ca + cy)
+                      for lx, ly in local]
+            self.cell.shapes(layer).insert(pya.DPolygon(pts).to_itype(dbu))
+
+
+# ===========================================================================
+# Registration
+# ===========================================================================
+
+_existing = [pya.Library.library_by_id(lid).name()
+             for lid in pya.Library.library_ids()]
+
+if "MicrofluidicLib" not in _existing:
+    class MicrofluidicLibrary(pya.Library):
+        def __init__(self):
+            self.description = "Microfluidic PCells - IPGG"
+            layout = self.layout()
+            layout.register_pcell("SerpentineChannel", SerpentineChannel())
+            layout.register_pcell("StraightChannel",   StraightChannel())
+            layout.register_pcell("TJunction",         TJunction())
+            layout.register_pcell("YChannel",          YChannel())
+            layout.register_pcell("FFSimpleJunction",  FFSimpleJunction())
+            layout.register_pcell("FFXJunction",       FFXJunction())
+            layout.register_pcell("Chamber",           Chamber())
+            layout.register_pcell("Outlet",            Outlet())
+            self.register("MicrofluidicLib")
+
+    MicrofluidicLibrary()
+
+</text>
+</klayout-macro>

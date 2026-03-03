@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description>New microfluidic layout (5 inch mask template)</description>
+ <version>3.0</version>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>false</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut>Ctrl+Shift+N</shortcut>
+ <show-in-menu>true</show-in-menu>
+ <group-name>microfluidic</group-name>
+ <menu-path>tools_menu.end</menu-path>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>
+import pya
+import math
+import os
+
+_HERE    = os.path.dirname(os.path.abspath(__file__)) if "__file__" in dir() else ""
+LYP_PATH = os.path.join(_HERE, "microfluidic.lyp")
+
+# ---------------------------------------------------------------------------
+# Dimensions (all in um)
+# ---------------------------------------------------------------------------
+WAFER_DIAM_UM  = 100_000    # 4-inch wafer
+MASK_SIDE_UM   = 127_000    # 5-inch mask = 127 mm square
+DBU            = 0.001      # 1 nm resolution
+
+# Outlines placed to the right of mask, 5 mm gap
+MASK_HALF     = MASK_SIDE_UM / 2          # 63500 um
+OUTLINE_GAP   = 5_000                     # 5 mm from mask right edge
+OUTLINE_X     = MASK_HALF + OUTLINE_GAP  # left edge of outline column
+
+CHIP_SIDE     = 60_000    # 6x6 cm chip
+LAMELLE_W     = 15_000    # 15x15 mm cover slip
+LAMELLE_H     = 15_000
+LAME_W        = 26_000    # 26x76 mm glass slide (vertical)
+LAME_H        = 76_000
+SHAPE_GAP     = 5_000     # gap between stacked outlines
+
+LAYER_DEFS = {
+    "PDMS_channel":  pya.LayerInfo(1,  0),
+    "masque":        pya.LayerInfo(20, 0),
+    "outlines":      pya.LayerInfo(30, 0),
+    "wafer_outline": pya.LayerInfo(99, 0),
+}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def circle_polygon(cx, cy, r_um, dbu, n=360):
+    s = 1.0 / dbu
+    return pya.Polygon([
+        pya.Point(int(round((cx + r_um * math.cos(2*math.pi*i/n)) * s)),
+                  int(round((cy + r_um * math.sin(2*math.pi*i/n)) * s)))
+        for i in range(n)
+    ])
+
+def ibox(x0, y0, x1, y1, s):
+    return pya.Box(int(round(x0*s)), int(round(y0*s)),
+                   int(round(x1*s)), int(round(y1*s)))
+
+# ---------------------------------------------------------------------------
+# Build layout
+# ---------------------------------------------------------------------------
+app    = pya.Application.instance()
+mw     = app.main_window()
+cv     = mw.create_layout(True)
+layout = cv.layout()
+layout.dbu = DBU
+s = 1.0 / DBU
+
+lidx = {name: layout.layer(info) for name, info in LAYER_DEFS.items()}
+top = layout.create_cell("TOP")
+cv.cell_name = "TOP"
+
+# Wafer outline (circle + flat)
+top.shapes(lidx["wafer_outline"]).insert(
+    circle_polygon(0, 0, WAFER_DIAM_UM/2, DBU))
+flat_y, flat_hw = -32_500, 16_000
+top.shapes(lidx["wafer_outline"]).insert(pya.Path(
+    [pya.Point(int(-flat_hw*s), int(flat_y*s)),
+     pya.Point(int( flat_hw*s), int(flat_y*s))],
+    int(200*s), 0, 0))
+
+# Mask outline: 5-inch square, centred on origin
+hs = MASK_HALF
+top.shapes(lidx["masque"]).insert(ibox(-hs, -hs, hs, hs, s))
+
+# Outlines: stacked vertically, left edge at OUTLINE_X, centred in y
+outline_shapes = [
+    ("chip 6x6cm",      CHIP_SIDE, CHIP_SIDE),
+    ("lamelle 15x15mm", LAMELLE_W, LAMELLE_H),
+    ("lame 26x76mm",    LAME_W,    LAME_H),
+]
+total_h = sum(h for _, _, h in outline_shapes) + SHAPE_GAP * (len(outline_shapes)-1)
+y_cursor = total_h / 2.0
+
+for name, w, h in outline_shapes:
+    y1 = y_cursor
+    y0 = y_cursor - h
+    top.shapes(lidx["outlines"]).insert(ibox(OUTLINE_X, y0, OUTLINE_X + w, y1, s))
+    print("%s: x=[%.0f..%.0f] y=[%.0f..%.0f] um" % (
+        name, OUTLINE_X, OUTLINE_X+w, y0, y1))
+    y_cursor = y0 - SHAPE_GAP
+
+# Layer properties
+if os.path.isfile(LYP_PATH):
+    mw.current_view().load_layer_props(LYP_PATH)
+else:
+    pya.MessageBox.warning("Layer properties",
+        "microfluidic.lyp not found.\nLayers without custom colours.",
+        pya.MessageBox.Ok)
+
+# Expand hierarchy and fit view
+view = mw.current_view()
+view.max_hier()
+view.zoom_fit()
+
+# Library browser
+try:
+    lb = mw.library_browser()
+    lb.show()
+    lb.select_library("MicrofluidicLib")
+except Exception:
+    try:
+        action = mw.menu().action("tools_menu.library_browser")
+        if action:
+            action.trigger()
+    except Exception:
+        pass
+
+pya.MessageBox.info(
+    "Template 5\" ready",
+    "Layout initialised with:\n"
+    "  - 4\" wafer + flat\n"
+    "  - 5\" square mask (127x127 mm)\n"
+    "  - Outlines: chip 6x6cm, lamelle 15x15mm, lame 26x76mm\n\n"
+    "Layers: PDMS_channel (1/0), masque (20/0),\n"
+    "        outlines (30/0), wafer_outline (99/0)\n\n"
+    "Components: View > Library Browser > MicrofluidicLib",
+    pya.MessageBox.Ok)
+ </text>
+</klayout-macro>
