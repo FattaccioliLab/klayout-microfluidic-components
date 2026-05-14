@@ -265,6 +265,12 @@ The cutting marks macro inserts L-shaped corner marks for dicing. It is a standa
 
 ---
 
+## Related Libraries
+
+**[klayout-microfluidic-trapping-array](https://github.com/FattaccioliLab/klayout-microfluidic-trapping-array)** — Parametric PCell library for hydrodynamic trapping arrays. Based on Ruyssen et al. (2025). Distributed separately; install and use alongside this library.
+
+---
+
 ## Citation
 
 If you use this library in published work, please cite:
