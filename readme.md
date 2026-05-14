@@ -14,6 +14,7 @@ A [KLayout](https://www.klayout.de) library of parametric microfluidic component
 ```
 microfluidic-klayout-lib/
 ├── microfluidic_lib.lym        # Main library — 8 PCells (autoload)
+├── microfluidic_lib.py         # Standalone Python library (alternative implementation)
 ├── cutting_marks.lym           # Cutting marks macro (Tools menu, Shift+C)
 ├── new_wafer_template.lym      # New layout template (Tools menu, Ctrl+Shift+N)
 ├── microfluidic.lyp            # Layer colour palette
@@ -43,9 +44,9 @@ microfluidic-klayout-lib/
    | macOS / Linux | `~/.klayout/pymacros/` |
    | Windows | `%APPDATA%\KLayout\pymacros\` |
 
-   Copy **all files** from `MicrofluidicLib_v3/` into that folder:
+   Copy **all files** from `microfluidic-klayout-lib/` into that folder:
    ```bash
-   cp MicrofluidicLib_v3/* ~/.klayout/pymacros/
+   cp microfluidic-klayout-lib/* ~/.klayout/pymacros/
    ```
 
 3. **Restart KLayout.** The library auto-registers on startup.
